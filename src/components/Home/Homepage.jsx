@@ -159,7 +159,7 @@ const Homepage = () => {
             </p>
             <div className="home-sec-content-btn-sec">
               <a
-                href="/Vishnu vijayanResume.pdf"
+                href="/vishnu_vijayan.pdf"
                 download="Vishnu vijayanResume.pdf"
                 className="home-sec-btn"
               >
@@ -682,10 +682,10 @@ const Homepage = () => {
                   ? "footer-card-sec"
                   : "darkmode-footer-card-sec"
               }
-              href="tel:8086171296"
+              href="tel:7909247054"
             >
               <img src="/phone.png" alt="" className="footer-icon" />
-              +91-(7909)247054
+              +91-7909247054
             </a>
 
             <a
