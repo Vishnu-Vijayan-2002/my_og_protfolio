@@ -936,3 +936,29 @@
     width: 90%;
   }
 }
+.add-project-form-container {
+  transition: all 0.5s ease-in-out;
+  animation: fadeIn 0.5s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.add-project-form-container .form-sec {
+  height: auto;
+  padding: 30px;
+  width: 100%;
+  max-width: 500px;
+}
+
+.add-project-form-container .form-input-field-sec {
+  width: 100%;
+  margin-bottom: 15px;
+}
+
+.add-project-form-container textarea.form-input-field {
+  resize: vertical;
+  min-height: 80px;
+}

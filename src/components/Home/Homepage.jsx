@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import "./Homepage.css";
 import emailjs from "@emailjs/browser";
 import Loader from "./Loader";
@@ -10,6 +10,168 @@ const Homepage = () => {
   const form = useRef();
 
   const [loader, setLoader] = useState(false);
+  const [projects, setProjects] = useState([]);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [showLoginForm, setShowLoginForm] = useState(false);
+  const [loginPassword, setLoginPassword] = useState("");
+  const [adminSecret, setAdminSecret] = useState(localStorage.getItem('adminSecret') || "");
+  const [adminClickCount, setAdminClickCount] = useState(0);
+  const [imageFile, setImageFile] = useState(null);
+  const [newProject, setNewProject] = useState({
+    title: "",
+    details: "",
+    image: "",
+    github: "",
+    web: ""
+  });
+
+  useEffect(() => {
+    fetchProjects();
+  }, []);
+
+  const fetchProjects = async () => {
+    try {
+      const response = await fetch('/api/projects');
+      const data = await response.json();
+      setProjects(data);
+    } catch (error) {
+      console.error("Error fetching projects:", error);
+      toast.error("Failed to load projects");
+    }
+  };
+
+  const handleAdminSecretTrigger = () => {
+    const newCount = adminClickCount + 1;
+    setAdminClickCount(newCount);
+    if (newCount === 5) {
+      setShowLoginForm(true);
+      setAdminClickCount(0);
+    }
+  };
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    try {
+      const response = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: loginPassword }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        setAdminSecret(data.secret);
+        localStorage.setItem('adminSecret', data.secret);
+        setShowLoginForm(false);
+        setLoginPassword("");
+        toast.success("Logged in as Admin");
+      } else {
+        toast.error("Invalid password");
+      }
+    } catch (error) {
+      console.error("Login error:", error);
+      toast.error("Login error: Make sure the backend server is running on port 5000", { duration: 5000 });
+    }
+  };
+
+  const handleLogout = () => {
+    setAdminSecret("");
+    localStorage.removeItem('adminSecret');
+    setShowAddForm(false);
+    toast.success("Logged out");
+  };
+
+  const handleAddProject = async (e) => {
+    e.preventDefault();
+    try {
+      let finalImagePath = newProject.image;
+
+      // If a new image file is selected, upload it first
+      if (imageFile) {
+        const formData = new FormData();
+        formData.append('image', imageFile);
+        
+        const uploadResponse = await fetch('/api/upload', {
+          method: 'POST',
+          headers: {
+            'x-admin-secret': adminSecret
+          },
+          body: formData
+        });
+        
+        if (uploadResponse.ok) {
+          const uploadData = await uploadResponse.json();
+          finalImagePath = uploadData.filePath;
+        } else {
+          const errorData = await uploadResponse.json();
+          toast.error(errorData.error || "Image upload failed");
+          return;
+        }
+      }
+
+      const url = editingId ? `/api/projects/${editingId}` : '/api/projects';
+      const method = editingId ? 'PUT' : 'POST';
+      
+      const response = await fetch(url, {
+        method: method,
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-secret': adminSecret
+        },
+        body: JSON.stringify({ ...newProject, image: finalImagePath }),
+      });
+      if (response.ok) {
+        toast.success(editingId ? "Project updated successfully" : "Project added successfully");
+        setNewProject({ title: "", details: "", image: "", github: "", web: "" });
+        setImageFile(null);
+        setShowAddForm(false);
+        setEditingId(null);
+        fetchProjects();
+      } else {
+        const errorData = await response.json();
+        toast.error(errorData.error || "Failed to save project");
+      }
+    } catch (error) {
+      console.error("Error saving project:", error);
+      toast.error("Error saving project");
+    }
+  };
+
+  const handleEditClick = (project) => {
+    setNewProject({
+      title: project.title,
+      details: project.details,
+      image: project.image,
+      github: project.github,
+      web: project.web
+    });
+    setEditingId(project.id);
+    setShowAddForm(true);
+    // Scroll to form
+    window.scrollTo({ top: document.querySelector('.add-project-btn-sec').offsetTop - 100, behavior: 'smooth' });
+  };
+
+  const handleDeleteProject = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this project?")) return;
+    
+    try {
+      const response = await fetch(`/api/projects/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'x-admin-secret': adminSecret
+        }
+      });
+      if (response.ok) {
+        toast.success("Project deleted successfully");
+        fetchProjects();
+      } else {
+        toast.error("Failed to delete project");
+      }
+    } catch (error) {
+      console.error("Error deleting project:", error);
+      toast.error("Error deleting project");
+    }
+  };
 
   const sendEmail = (e) => {
     e.preventDefault();
@@ -59,7 +221,7 @@ const Homepage = () => {
 
     emailjs
       .sendForm("service_fd5kg1m", "template_901v1v7", form.current, {
-        publicKey: "lUmI5slkEgdP6ewCp",
+        publicKey: "Zme0_qDouIGTObo7X",
       })
       .then(
         () => {
@@ -68,7 +230,8 @@ const Homepage = () => {
           setLoader(false);
         },
         (error) => {
-          // console.log("FAILED...", error.text);
+          console.error("EmailJS Error:", error);
+          toast.error("Failed to send message: " + (error.text || "Unknown error"), { position: "bottom-center" });
           setLoader(false);
         }
       );
@@ -140,7 +303,7 @@ const Homepage = () => {
                 : "darkmode-home-sec-content  "
             }
           >
-            <h1>Hello !</h1>
+            <h1 onClick={handleAdminSecretTrigger} style={{ cursor: 'default', userSelect: 'none' }}>Hello !</h1>
             <h1>I am Vishnu Vijayan</h1>
             <p className="home-sec-content-p">
               I'm a proficient Full Stack web developer adept in both front-end
@@ -159,8 +322,8 @@ const Homepage = () => {
             </p>
             <div className="home-sec-content-btn-sec">
               <a
-                href="/vishnu_vijayan.pdf"
-                download="Vishnu vijayanResume.pdf"
+                href="https://drive.google.com/file/d/1H6mhZW1OliqirrCqOOegNDFq3GdNJ6oy/view?usp=sharing"
+                download="vishnu_vijayan_25.pdf"
                 className="home-sec-btn"
               >
                 Download CV
@@ -218,90 +381,38 @@ const Homepage = () => {
           </div>
  
           <div className="project-content-sec">
-            {/* //project card body */}
-            {/* / Tomato/*/}
-
-                <div className="project-card-main-body">
-                  <div className="project-card-sub-body">
-                    <div
-                      className={
-                        darkModeHandlerfunction == true
-                          ? "project-card-body"
-                          : "darkmode-project-card-body"
-                      }
-                    >
-                      <div className="project-card-img-sec">
-                        <img
-                          src="/tomato.png"
-                          alt=""
-                          className="project-card-img"
-                        />
-                      </div>
-
-
-                      {/* projects */}
-                      <div className="project-card-content-sec">
-                        <div className="project-card-project-title">
-                          Tomato
-                        </div>
-                        <div className="project-card-project-details">
-                        This project is a simple food ordering website built using React. It allows users to browse through a menu of food items, add items to their cart, and place an order. The website is responsive and adapts well to different screen sizes.
-                        </div>
-                        <div className="project-card-project-logo-sec">
-                          <a
-                            href="https://github.com/Vishnu-Vijayan-2002/React-main-project-front-end-design.git"
-                            className="project-github-btn"
-                            target="_black">
-                            <img
-                              src="/github.png"
-                              alt=""
-                              className={
-                                darkModeHandlerfunction == true
-                                  ? "project-logo "
-                                  : "darkmode-project-logo"
-                              }
-                            />
-                            <div class="project-logo-text">View on GitHub</div>
-                          </a>
-                          <a
-                            href="https://react-main-project-front-end-4i53-nn1s6hk2r.vercel.app/"
-                            className="project-btn"
-                            target="_black">
-                            Go to web
-                            <img src="/web.png" alt="" className="project-logo" />
-                          </a>{" "}
-                        </div>
-                      </div>
+            {projects.map((project) => (
+              <div className="project-card-main-body" key={project.id}>
+                <div className="project-card-sub-body">
+                  <div
+                    className={
+                      darkModeHandlerfunction == true
+                        ? "project-card-body"
+                        : "darkmode-project-card-body"
+                    }
+                  >
+                    <div className="project-card-img-sec">
+                      <img
+                        src={project.image || "/file.png"}
+                        alt=""
+                        className="project-card-img"
+                      />
                     </div>
-                  </div>
-                </div>
-    
-                {/* //React Quiz App*/}
-    
-                <div className="project-card-main-body">
-                  <div className="project-card-sub-body">
-                    <div
-                      className={
-                        darkModeHandlerfunction == true
-                          ? "project-card-body"
-                          : "darkmode-project-card-body"
-                      }
-                    >
-                      <div className="project-card-img-sec">
-                        <img src="/quizapp.png" alt="" className="project-card-img" />
+
+                    <div className="project-card-content-sec">
+                      <div className="project-card-project-title">
+                        {project.title}
                       </div>
-                      <div className="project-card-content-sec">
-                        <div className="project-card-project-title">React Quiz App</div>
-                        <div className="project-card-project-details">
-                        Interactive Quizzes: Engage in thought-provoking questions on various topics.
-                        React-powered UI: Building a responsive and sleek user interface with React components.
-                        Score Tracking: Challenge yourself and track your quiz performance.
-                        </div>
-                        <div className="project-card-project-logo-sec">
+                      <div className="project-card-project-details">
+                        {project.details}
+                      </div>
+                      <div className="project-card-project-logo-sec">
+                        {project.github && (
                           <a
-                            href="https://github.com/Vishnu-Vijayan-2002/react-quiz-app.git"
+                            href={project.github}
                             className="project-github-btn"
-                            target="_black">
+                            target="_blank"
+                            rel="noopener noreferrer">
                             <img
                               src="/github.png"
                               alt=""
@@ -311,130 +422,162 @@ const Homepage = () => {
                                   : "darkmode-project-logo"
                               }
                             />
-                            <div class="project-logo-text">View on GitHub</div>
+                            <div className="project-logo-text">View on GitHub</div>
                           </a>
+                        )}
+                        {project.web && (
                           <a
-                            href="https://react-quiz-app-zeta-blue.vercel.app/"
+                            href={project.web}
                             className="project-btn"
-                            target="_black">
+                            target="_blank"
+                            rel="noopener noreferrer">
                             Go to web
                             <img src="/web.png" alt="" className="project-logo" />
-                          </a>{" "}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              {/* //Gym Website */}
-    
-                <div className="project-card-main-body">
-                  <div className="project-card-sub-body">
-                    <div
-                      className={
-                        darkModeHandlerfunction == true
-                          ? "project-card-body"
-                          : "darkmode-project-card-body"
-                      }
-                    >
-                      {" "}
-                      <div className="project-card-img-sec">
-                        <img
-                          src="/file.png"
-                          alt=""
-                          className="project-card-img"
-                        />
-                      </div>
-                      <div className="project-card-content-sec">
-                        <div className="project-card-project-title">Gym Website</div>
-                        <div className="project-card-project-details">
-                        A Responsive 💪🏽Gym site Website blending HTML, CSS, Bootstrap and javascript
-                        </div>
-                        <div className="project-card-project-logo-sec">
-                          <a
-                            href="https://github.com/Vishnu-Vijayan-2002/befit-gym.git"
-                            className="project-github-btn"
-                            target="_black">
-                            <img
-                              src="/github.png"
-                              alt=""
-                              className={
-                                darkModeHandlerfunction == true
-                                  ? "project-logo "
-                                  : "darkmode-project-logo"
-                              }
-                            />
-                            <div class="project-logo-text">View on GitHub</div>
                           </a>
-                          <a
-                            href="https://befit-gym.vercel.app/"
-                            className="project-btn"
-                            target="_black">
-                            Go to web
-                            <img src="/web.png" alt="" className="project-logo" />
-                          </a>{" "}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-    
-                {/* //Personal Portfolio */}
-    
-                <div className="project-card-main-body">
-                  <div className="project-card-sub-body">
-                    <div
-                      className={
-                        darkModeHandlerfunction == true
-                          ? "project-card-body"
-                          : "darkmode-project-card-body"
-                      }
-                    >
-                      {" "}
-                      <div className="project-card-img-sec">
-                        <img 
-                          src="/news.png"
-                          alt=""
-                          className="project-card-img img-fluid"
-                        />
-                      </div>
-                      <div className="project-card-content-sec">
-                        <div className="project-card-project-title">
-                          News-Hub
-                        </div>
-                        <div className="project-card-project-details">
-                        Real-time News Updates: Stay informed with the latest headlines fetched dynamically.
-                        JSON Server Magic: Leveraging the simplicity and flexibility of JSON Server for seamless data management.
-                        User-Friendly Interface: A clean and intuitive design for a smooth browsing experience
-                        </div>
-                        <div className="project-card-project-logo-sec">
-                          <a
-                            href="https://github.com/Vishnu-Vijayan-2002/React-news-hub-web"
-                            className="project-github-btn"
-                            target="_black">
-                            <img
-                              src="/github.png"
-                              alt=""
-                              className={
-                                darkModeHandlerfunction == true
-                                  ? "project-logo "
-                                  : "darkmode-project-logo"
-                              }
-                            />
-                            <div class="project-logo-text">View on GitHub</div>
-                          </a>
-                          <a
-                            href="https://react-news-hub-web.vercel.app/"
-                            className="project-btn"
-                            target="_black">
-                            Go to web
-                            <img src="/web.png" alt="" className="project-logo" />
-                          </a>{" "}
-                        </div>
+                        )}
+                        {adminSecret && (
+                          <div style={{ display: 'flex', gap: '10px', marginTop: '10px', width: '100%' }}>
+                            <button 
+                              onClick={() => handleEditClick(project)}
+                              style={{ background: '#4CAF50', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem' }}
+                            >
+                              Edit
+                            </button>
+                            <button 
+                              onClick={() => handleDeleteProject(project.id)}
+                              style={{ background: '#f44336', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem' }}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
+            ))}
+          </div>
+
+          {adminSecret && (
+            <div className="add-project-btn-sec" style={{ textAlign: 'center', marginTop: '20px' }}>
+              <button 
+                className="project-btn" 
+                onClick={() => {
+                  setShowAddForm(!showAddForm);
+                  if (!showAddForm) {
+                    setEditingId(null);
+                    setNewProject({ title: "", details: "", image: "", github: "", web: "" });
+                  }
+                }}
+                style={{ background: '#ff4d4d', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '5px', cursor: 'pointer', margin: '10px' }}
+              >
+                {showAddForm ? "Cancel" : "Add New Project"}
+              </button>
+              <button 
+                className="project-btn" 
+                onClick={handleLogout}
+                style={{ background: '#333', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '5px', cursor: 'pointer', margin: '10px' }}
+              >
+                Admin Logout
+              </button>
+            </div>
+          )}
+
+          {adminSecret && showAddForm && (
+            <div className="add-project-form-container" style={{ maxWidth: '600px', margin: '20px auto', padding: '20px', background: darkModeHandlerfunction ? '#fff' : '#222', borderRadius: '10px', boxShadow: '0 0 10px rgba(0,0,0,0.1)' }}>
+              <form onSubmit={handleAddProject} className="form-sec">
+                <h3 style={{ color: darkModeHandlerfunction ? '#333' : '#fff' }}>
+                  {editingId ? "Edit Project" : "Add New Project"}
+                </h3>
+                <div className="form-input-field-sec">
+                  Title
+                  <input
+                    type="text"
+                    className="form-input-field"
+                    required
+                    value={newProject.title}
+                    onChange={(e) => setNewProject({ ...newProject, title: e.target.value })}
+                  />
+                </div>
+                <div className="form-input-field-sec">
+                  Details
+                  <textarea
+                    className="form-input-field"
+                    style={{ height: '100px' }}
+                    required
+                    value={newProject.details}
+                    onChange={(e) => setNewProject({ ...newProject, details: e.target.value })}
+                  />
+                </div>
+                <div className="form-input-field-sec">
+                  Project Image
+                  <input
+                    type="file"
+                    className="form-input-field"
+                    accept="image/*"
+                    onChange={(e) => setImageFile(e.target.files[0])}
+                    style={{ borderBottom: 'none', paddingTop: '10px' }}
+                  />
+                  <small style={{ color: '#888', fontSize: '0.7rem' }}>
+                    Or enter path:
+                  </small>
+                  <input
+                    type="text"
+                    className="form-input-field"
+                    placeholder="/tomato.png or https://..."
+                    value={newProject.image}
+                    onChange={(e) => setNewProject({ ...newProject, image: e.target.value })}
+                  />
+                </div>
+                <div className="form-input-field-sec">
+                  GitHub Link
+                  <input
+                    type="text"
+                    className="form-input-field"
+                    value={newProject.github}
+                    onChange={(e) => setNewProject({ ...newProject, github: e.target.value })}
+                  />
+                </div>
+                <div className="form-input-field-sec">
+                  Web Link
+                  <input
+                    type="text"
+                    className="form-input-field"
+                    value={newProject.web}
+                    onChange={(e) => setNewProject({ ...newProject, web: e.target.value })}
+                  />
+                </div>
+                <button type="submit" className="form-send-btn" style={{ width: '100%', marginTop: '10px' }}>
+                  {editingId ? "Update Project" : "Add Project"}
+                </button>
+              </form>
+            </div>
+          )}
+
+          {showLoginForm && (
+            <div className="add-project-form-container" style={{ maxWidth: '400px', margin: '20px auto', padding: '20px', background: darkModeHandlerfunction ? '#fff' : '#222', borderRadius: '10px', boxShadow: '0 0 10px rgba(0,0,0,0.1)' }}>
+              <form onSubmit={handleLogin} className="form-sec">
+                <h3 style={{ color: darkModeHandlerfunction ? '#333' : '#fff' }}>Admin Login</h3>
+                <div className="form-input-field-sec">
+                  Admin Password
+                  <input
+                    type="password"
+                    className="form-input-field"
+                    required
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                  />
+                </div>
+                <button type="submit" className="form-send-btn" style={{ width: '100%', marginTop: '10px' }}>
+                  Login
+                </button>
+                <button type="button" className="project-btn" onClick={() => setShowLoginForm(false)} style={{ background: 'transparent', color: darkModeHandlerfunction ? '#333' : '#fff', border: 'none', marginTop: '10px' }}>
+                  Close
+                </button>
+              </form>
+            </div>
+          )}
             </div>
 
 
