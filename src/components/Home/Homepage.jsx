@@ -5,6 +5,7 @@ import Loader from "./Loader";
 import toast, { Toaster } from "react-hot-toast";
 import { useDispatch, useSelector } from "react-redux";
 import { DarkmodeHandler } from "../../redux/reducer/Reducer";
+import resume from "../../assets/vishnu_vijayan_25.pdf";
 
 const Homepage = () => {
   const form = useRef();
@@ -322,7 +323,7 @@ const Homepage = () => {
             </p>
             <div className="home-sec-content-btn-sec">
               <a
-                href="https://drive.google.com/file/d/1H6mhZW1OliqirrCqOOegNDFq3GdNJ6oy/view?usp=sharing"
+                href={resume}
                 download="vishnu_vijayan_25.pdf"
                 className="home-sec-btn"
               >
